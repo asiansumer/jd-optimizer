@@ -1,5 +1,8 @@
-import { boolean, index, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+
+// SQLite boolean type helper
+const integer = (name: string) => int(name);
 
 export const jds = sqliteTable(
   'jds',
@@ -27,7 +30,7 @@ export const jdTemplates = sqliteTable(
     name: text('name').notNull(),
     category: text('category').notNull(),
     content: text('content').notNull(),
-    isPublic: boolean('is_public', { mode: 'boolean' }).notNull().default(false),
+    isPublic: integer('is_public').notNull().default(0),
     createdAt: int('created_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),

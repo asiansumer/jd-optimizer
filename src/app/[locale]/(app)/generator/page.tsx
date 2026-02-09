@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { JDForm, JDFormData } from '@/components/jd/JDForm';
-import { JDPreview, JobDescription } from '@/components/jd/JDPreview';
+import JDPreview, { JobDescription } from '@/components/jd/JDPreview';
 import { Button } from '@/shared/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { LogIn } from 'lucide-react';

@@ -1,8 +1,8 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
-import { Hero } from '@/components/ui/landing';
-import { FeatureCard } from '@/components/ui/landing';
-import { PricingCard } from '@/components/ui/landing';
+import { Hero } from '@/components/ui/landing/Hero';
+import { FeatureCard } from '@/components/ui/landing/FeatureCard';
+import { PricingCard } from '@/components/ui/landing/PricingCard';
 import { Button } from '@/shared/components/ui/button';
 import { Sparkles, Zap, Shield, Globe, ArrowRight, CheckCircle2, Star } from 'lucide-react';
 

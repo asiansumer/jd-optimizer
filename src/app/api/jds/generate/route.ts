@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { generateJD, JDGenerationInput } from '@/lib/ai/jd-generator';
 import { saveJD } from '@/lib/ai';
-import { getCurrentUser } from '@/core/auth/client';
+import { getAuth } from '@/core/auth';
 import { getAllTemplates, getTemplateCategories } from '@/lib/ai/templates';
 
 /**
@@ -11,15 +11,20 @@ import { getAllTemplates, getTemplateCategories } from '@/lib/ai/templates';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Get current user
-    const user = await getCurrentUser();
+    // Get auth instance
+    const auth = await getAuth();
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
 
-    if (!user) {
+    if (!session || !session.user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
+
+    const user = session.user;
 
     // Parse request body
     const body = await request.json();
