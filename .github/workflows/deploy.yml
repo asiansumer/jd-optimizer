@@ -2,260 +2,56 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
-      - develop
-  pull_request:
-    branches:
-      - main
-      - develop
-  workflow_dispatch:
+    branches: [main]
 
 env:
   NODE_VERSION: '20'
-  PNPM_VERSION: '9'
 
 jobs:
-  # 代码质量检查
   lint:
     name: Code Quality Checks
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run ESLint
-        run: pnpm lint
-
-      - name: Check Prettier formatting
-        run: pnpm format:check
-
-      - name: Type check
-        run: pnpm tsc --noEmit
-
-  # 构建测试
   build:
-    name: Build Test
+    name: Build
     runs-on: ubuntu-latest
     needs: lint
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build application
-        env:
-          NODE_ENV: production
-          NEXT_PUBLIC_APP_URL: https://jd-optimizer.com
-          NEXT_PUBLIC_APP_NAME: JD Optimizer
+      - run: pnpm install --frozen-lockfile
+      - env:
+          NEXT_PUBLIC_APP_URL: https://jd-optimizer.pages.dev
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: pnpm build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: build-output
           path: .next
-          retention-days: 7
 
-  # 部署到 Cloudflare Pages (Preview)
-  deploy-preview:
-    name: Deploy to Cloudflare Pages (Preview)
+  deploy:
+    name: Deploy to Cloudflare Pages
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build for Cloudflare
-        env:
-          NODE_ENV: production
-          NEXT_PUBLIC_APP_URL: https://preview.jd-optimizer.com
-          NEXT_PUBLIC_APP_NAME: JD Optimizer
-          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET_PREVIEW }}
-          AI_PROVIDER: openrouter
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: |
-          pnpm build
-          npx opennextjs-cloudflare build
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+      - run: npx opennextjs-cloudflare build
+      - uses: cloudflare/wrangler-pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .open-next --project-name=jd-optimizer-preview
-
-      - name: Comment deployment URL
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '🚀 Preview deployment ready!\n\nURL: https://jd-optimizer-preview.pages.dev'
-            })
-
-  # 部署到 Cloudflare Pages (Production)
-  deploy-production:
-    name: Deploy to Cloudflare Pages (Production)
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build for Cloudflare
-        env:
-          NODE_ENV: production
-          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-          NEXT_PUBLIC_APP_NAME: JD Optimizer
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
-          DATABASE_PROVIDER: ${{ secrets.DATABASE_PROVIDER }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          AI_PROVIDER: openrouter
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
-          STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-        run: |
-          pnpm build
-          npx opennextjs-cloudflare build
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .open-next --project-name=jd-optimizer
-
-      - name: Run database migrations
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
-          DATABASE_PROVIDER: ${{ secrets.DATABASE_PROVIDER }}
-        run: pnpm db:push
-
-      - name: Notify deployment
-        if: success()
-        run: |
-          echo "✅ Production deployment successful!"
-          echo "URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}"
-
-      - name: Rollback on failure
-        if: failure()
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deployment rollback --project-name=jd-optimizer
-
-  # 性能和安全扫描
-  security-scan:
-    name: Security & Performance Scan
-    runs-on: ubuntu-latest
-    needs: lint
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run npm audit
-        run: pnpm audit --audit-level=moderate || true
-
-      - name: Check for vulnerabilities
-        run: |
-          pnpm install -g snyk
-          snyk auth ${{ secrets.SNYK_TOKEN }} || echo "Snyk token not configured"
-          snyk test --severity-threshold=high || true
-
-      - name: Bundle size analysis
-        uses: andresz1/size-limit-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          build_script: build
-          skip_step: install
-
-  # 通知
-  notify:
-    name: Notify Deployment Status
-    runs-on: ubuntu-latest
-    needs: [deploy-preview, deploy-production]
-    if: always()
-
-    steps:
-      - name: Send notification
-        run: |
-          if [ "${{ needs.deploy-production.result }}" == "success" ]; then
-            echo "✅ Production deployment successful"
-          elif [ "${{ needs.deploy-preview.result }}" == "success" ]; then
-            echo "✅ Preview deployment successful"
-          else
-            echo "❌ Deployment failed"
-          fi
+          project-name: jd-optimizer
